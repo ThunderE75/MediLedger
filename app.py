@@ -76,24 +76,26 @@ def get_user_documents(user):
 
 # ------------------- Streamlit UI -------------------
 st.set_page_config(page_title="Blockchain Health Storage", page_icon="📄", layout="wide")
+# Header UI
+st.markdown("""
+    <div style='text-align: center; padding: 20px; background: linear-gradient(to left, #fc4e42, #fc8c42); border-radius: 0px;'>
+        <h1 style='color: white;'>MediLedger</h1>
+        <p style='color: white; font-size: 18px;'> An app to store Healthcare documents on Blockchain</p>
+    </div>
+""", unsafe_allow_html=True)
 
-with st.container():
-    col1, col2 = st.columns([10, 1])
-    with col2:
-        st.markdown("""
-            <a href="https://drive.google.com/file/d/1c1A8jm0z-Pj0hpBFGh_82oUslqZXvbvv/view?usp=drive_link" target="_blank">
-                <button title="View Research Paper">📄 Research Paper</button>
-            </a>
-        """, unsafe_allow_html=True)
-
-st.title("MediLedger")
-
-# st.markdown("""
-# **MediLedger** is a proof-of-concept application demonstrating secure storage and permission-based access to healthcare documents using blockchain technology. 
-# This system is part of a research effort exploring decentralized architectures for medical data handling. A detailed explanation of the proposed framework and implementation is available in the accompanying research paper.
-# """)
+# s
 
 st.sidebar.title("Login")
+
+st.sidebar.markdown("""
+<div style='text-align: left; padding: 0px'>
+    <a href="https://drive.google.com/file/d/1c1A8jm0z-Pj0hpBFGh_82oUslqZXvbvv/view?usp=drive_link" target="_blank">
+    <button title="View Research Paper">📄 View Research Paper</button>
+</a>
+</div>
+""", unsafe_allow_html=True)
+
 login_tab, provider_tab, view_chain_tab = st.sidebar.tabs(["User Login", "Provider Login", "View Blockchain"])
 
 
