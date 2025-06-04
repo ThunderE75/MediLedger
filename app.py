@@ -2,7 +2,7 @@ import streamlit as st
 import hashlib
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 import pytesseract
 from PIL import Image
 import io
@@ -44,15 +44,16 @@ def classify_document(file_bytes):
     except Exception:
         return "Unknown"
 
-def create_block(file_hash, uploader, access_list, doc_type):
+def create_block(file_hash, uploader, access_list, doc_type, remarks):
     chain = load_blockchain()
     previous_hash = chain[-1]['block_hash'] if chain else '0'
     block = {
-        'timestamp': str(datetime.now(datetime.UTC)),
+        'timestamp': str(datetime.now(timezone.utc)),
         'file_hash': file_hash,
         'uploader': uploader,
         'access_list': access_list,
         'document_type': doc_type,
+        'remarks': remarks,
         'previous_hash': previous_hash
     }
     block['block_hash'] = compute_hash(json.dumps(block).encode())
@@ -65,6 +66,13 @@ def verify_access(user, file_hash):
         if block['file_hash'] == file_hash and user in block['access_list']:
             return True
     return False
+
+def get_user_documents(user):
+    docs = []
+    for block in load_blockchain():
+        if block['uploader'] == user or user in block['access_list']:
+            docs.append(block)
+    return docs
 
 # ------------------- Streamlit UI -------------------
 st.set_page_config(page_title="Blockchain Health Storage", page_icon="📄", layout="wide")
@@ -80,50 +88,90 @@ with st.container():
 
 st.title("MediLedger")
 
-st.markdown("""
-**MediLedger** is a proof-of-concept application demonstrating secure storage and permission-based access to healthcare documents using blockchain technology. 
-This system is part of a research effort exploring decentralized architectures for medical data handling. A detailed explanation of the proposed framework and implementation is available in the accompanying research paper.
-""")
+# st.markdown("""
+# **MediLedger** is a proof-of-concept application demonstrating secure storage and permission-based access to healthcare documents using blockchain technology. 
+# This system is part of a research effort exploring decentralized architectures for medical data handling. A detailed explanation of the proposed framework and implementation is available in the accompanying research paper.
+# """)
 
-st.sidebar.title("User Panel")
-role = st.sidebar.radio("Select Role", ["Patient", "Provider"])
-user_id = st.sidebar.text_input("Enter Your User ID")
+st.sidebar.title("Login")
+login_tab, provider_tab, view_chain_tab = st.sidebar.tabs(["User Login", "Provider Login", "View Blockchain"])
 
-if role == "Patient":
-    st.header("Upload Healthcare Document")
-    uploaded_file = st.file_uploader("Choose a JPG, PNG, or TIFF file", type=['jpg', 'jpeg', 'png', 'tiff'])
-    if uploaded_file:
-        access_input = st.text_input("Enter comma-separated provider IDs to grant access")
-        if st.button("Upload and Register on Blockchain"):
-            file_bytes = uploaded_file.read()
-            file_hash = compute_hash(file_bytes)
-            file_path = os.path.join(STORAGE_FOLDER, file_hash)
-            with open(file_path, 'wb') as f:
-                f.write(file_bytes)
-            access_list = [x.strip() for x in access_input.split(",") if x.strip()]
-            doc_type = classify_document(file_bytes)
-            block = create_block(file_hash, user_id, access_list, doc_type)
-            st.success("Document successfully registered!")
-            st.json(block)
 
-elif role == "Provider":
-    st.header("Request Document Access")
-    file_hash_input = st.text_input("Enter File Hash")
-    if st.button("Request Access"):
-        if verify_access(user_id, file_hash_input):
-            file_path = os.path.join(STORAGE_FOLDER, file_hash_input)
-            if os.path.exists(file_path):
-                with open(file_path, 'rb') as f:
-                    st.download_button("Download Document", f.read(), file_hash_input + ".pdf")
-            else:
-                st.error("File not found in storage.")
-        else:
-            st.error("Access Denied: You are not authorized to view this document.")
+with login_tab:
+    user_username = st.text_input("Username", key="user_username")
+    user_password = st.text_input("Password", type="password", key="user_password")
+    col1, col2 = st.columns([1, 1])
+    if col1.button("Login as User"):
+        st.session_state['logged_in'] = True
+        st.session_state['user_type'] = "User"
+        st.session_state['username'] = user_username
+    if col2.button("Logout", key="logout_user"):
+        st.session_state.clear()
+        st.rerun()
 
-st.sidebar.markdown("---")
-if st.sidebar.button("View Blockchain"):
-    st.sidebar.subheader("Blockchain Ledger")
+
+with provider_tab:
+    provider_username = st.text_input("Username", key="provider_username")
+    provider_password = st.text_input("Password", type="password", key="provider_password")
+    col1, col2 = st.columns([1, 1])
+    if col1.button("Login as Provider"):
+        st.session_state['logged_in'] = True
+        st.session_state['user_type'] = "Healthcare Provider"
+        st.session_state['username'] = provider_username
+    if col2.button("Logout", key="logout_provider"):
+        st.session_state.clear()
+        st.rerun()
+        
+with view_chain_tab:
+    st.subheader("Blockchain Ledger")
     chain = load_blockchain()
-    for i, block in enumerate(chain):
-        st.sidebar.markdown(f"**Block {i+1}:**")
-        st.sidebar.json(block)
+    if chain:
+        for i, block in enumerate(chain):
+            st.markdown(f"**Block {i+1}:**")
+            st.json(block)
+    else:
+        st.info("Blockchain is currently empty.")
+
+
+if st.session_state.get('logged_in'):
+    user_type = st.session_state['user_type']
+    username = st.session_state['username']
+    st.sidebar.success(f"Logged in as {user_type}: {username}")
+    if user_type == "User":
+        st.header("Your Documents")
+        user_docs = get_user_documents(username)
+        if user_docs:
+            cols = st.columns(3)
+            for i, block in enumerate(user_docs):
+                file_path = os.path.join(STORAGE_FOLDER, block['file_hash'])
+                try:
+                    with open(file_path, 'rb') as f:
+                        image_bytes = f.read()
+                    with cols[i % 3]:
+                        st.image(image_bytes, caption=block['document_type'], use_container_width=True)
+                        with st.expander("View Metadata"):
+                            st.json(block)
+                except Exception:
+                    st.warning(f"Document {i+1} could not be loaded.")
+        else:
+            st.info("No documents found for your account.")
+
+    elif user_type == "Healthcare Provider":
+        st.header("Upload Patient Document")
+        patient_id = st.text_input("Patient Username")
+        report_type = st.selectbox("Report Type", ["X-ray", "Blood Test", "Urine Test", "MRI Scan", "Other"])
+        remarks = st.text_area("Remarks")
+        uploaded_file = st.file_uploader("Upload Medical Document", type=['jpg', 'jpeg', 'png', 'tiff'])
+
+        if uploaded_file:
+            if st.button("Upload and Register on Blockchain"):
+                file_bytes = uploaded_file.read()
+                file_hash = compute_hash(file_bytes)
+                file_path = os.path.join(STORAGE_FOLDER, file_hash)
+                with open(file_path, 'wb') as f:
+                    f.write(file_bytes)
+                doc_type = report_type + " Report"
+                access_list = [patient_id]
+                block = create_block(file_hash, username, access_list, doc_type, remarks)
+                st.success("Document successfully registered!")
+                st.json(block)
