@@ -75,7 +75,7 @@ def get_user_documents(user):
     return docs
 
 # ------------------- Streamlit UI -------------------
-st.set_page_config(page_title="Blockchain Health Storage", page_icon="📄", layout="wide")
+st.set_page_config(page_title="Blockchain Health Storage", page_icon="🚑", layout="wide")
 # Header UI
 st.markdown("""
     <div style='text-align: center; padding: 20px; background: linear-gradient(to left, #fc4e42, #fc8c42); border-radius: 0px;'>
