@@ -29,10 +29,14 @@ MediLedger is a proof-of-concept application that demonstrates secure, permissio
 1. Setup and activate a python virtual environment. *(optional but recommended)*
     
     ```
-    python -m venv MediLedger
-    cd MediLedger\bin\activate.bat
+    python3 -m venv MediLedger
+    MediLedger\bin\activate
     ```
-1. Install all the required packages from `requirements.txt`
+    ```
+    python -m venv MediLedger
+    MediLedger\Scripts\activate.bat
+    ```
+2. Install all the required packages from `requirements.txt`
 
     ```
     pip3 install -r requirements.txt

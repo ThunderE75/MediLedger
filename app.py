@@ -3,6 +3,9 @@ import hashlib
 import json
 import os
 from datetime import datetime
+import pytesseract
+from PIL import Image
+import io
 
 # Simulated Blockchain and Off-Chain Storage
 BLOCKCHAIN_FILE = "blockchain.json"
@@ -23,14 +26,33 @@ def save_blockchain(chain):
 def compute_hash(file_bytes):
     return hashlib.sha256(file_bytes).hexdigest()
 
-def create_block(file_hash, uploader, access_list):
+def classify_document(file_bytes):
+    try:
+        image = Image.open(io.BytesIO(file_bytes)).convert("RGB")
+        text = pytesseract.image_to_string(image).lower()
+
+        if "x-ray" in text or "radiograph" in text:
+            return "X-ray Report"
+        elif "hemoglobin" in text or "cbc" in text or "platelet" in text:
+            return "Blood Test Report"
+        elif "mri" in text:
+            return "MRI Scan Report"
+        elif "urine" in text:
+            return "Urine Test Report"
+        else:
+            return "General Medical Document"
+    except Exception:
+        return "Unknown"
+
+def create_block(file_hash, uploader, access_list, doc_type):
     chain = load_blockchain()
     previous_hash = chain[-1]['block_hash'] if chain else '0'
     block = {
-        'timestamp': str(datetime.utcnow()),
+        'timestamp': str(datetime.now(datetime.UTC)),
         'file_hash': file_hash,
         'uploader': uploader,
         'access_list': access_list,
+        'document_type': doc_type,
         'previous_hash': previous_hash
     }
     block['block_hash'] = compute_hash(json.dumps(block).encode())
@@ -52,11 +74,16 @@ with st.container():
     with col2:
         st.markdown("""
             <a href="https://drive.google.com/file/d/1c1A8jm0z-Pj0hpBFGh_82oUslqZXvbvv/view?usp=drive_link" target="_blank">
-                <button title="View Research Paper">📄</button>
+                <button title="View Research Paper">📄 Research Paper</button>
             </a>
         """, unsafe_allow_html=True)
 
-st.title("Blockchain-based Healthcare Document Storage")
+st.title("MediLedger")
+
+st.markdown("""
+**MediLedger** is a proof-of-concept application demonstrating secure storage and permission-based access to healthcare documents using blockchain technology. 
+This system is part of a research effort exploring decentralized architectures for medical data handling. A detailed explanation of the proposed framework and implementation is available in the accompanying research paper.
+""")
 
 st.sidebar.title("User Panel")
 role = st.sidebar.radio("Select Role", ["Patient", "Provider"])
@@ -64,7 +91,7 @@ user_id = st.sidebar.text_input("Enter Your User ID")
 
 if role == "Patient":
     st.header("Upload Healthcare Document")
-    uploaded_file = st.file_uploader("Choose a PDF or TXT file", type=['pdf', 'txt'])
+    uploaded_file = st.file_uploader("Choose a JPG, PNG, or TIFF file", type=['jpg', 'jpeg', 'png', 'tiff'])
     if uploaded_file:
         access_input = st.text_input("Enter comma-separated provider IDs to grant access")
         if st.button("Upload and Register on Blockchain"):
@@ -74,7 +101,8 @@ if role == "Patient":
             with open(file_path, 'wb') as f:
                 f.write(file_bytes)
             access_list = [x.strip() for x in access_input.split(",") if x.strip()]
-            block = create_block(file_hash, user_id, access_list)
+            doc_type = classify_document(file_bytes)
+            block = create_block(file_hash, user_id, access_list, doc_type)
             st.success("Document successfully registered!")
             st.json(block)
 
